@@ -1,0 +1,12 @@
+[package]
+name = "rust-ml"
+version = "0.1.0"
+authors = ["Benoit <krazylek@gmail.com>"]
+
+[dependencies]
+rusty-machine="*"
+num="~0.1.32"
+hyper="0.9.8"
+url="*"
+rustc-serialize="*"
+getopts = "0.2"
