@@ -11,7 +11,7 @@ It involves:
 ## Usage
 
 ``` bash
-cargo run
+cargo run -- [Options]
 
 Options:
   -m, --mode   Either "client" or "server"

@@ -6,7 +6,6 @@ extern crate url;
 mod client;
 mod server;
 
-use server::{Movie};
 use getopts::Options;
 use std::env;
 
@@ -33,7 +32,7 @@ fn main() {
 
     let default_port = "8090";
     let port_opt = matches.opt_str("p");
-    let port = port_opt.as_ref().map_or(default_port, |ref p| { let p = p.trim(); p });
+    let port = port_opt.as_ref().map_or(default_port, |p| { let p = p.trim(); p });
 
     match matches.opt_str("m") {
         Some(ref v) if v == "server" => {
@@ -41,7 +40,7 @@ fn main() {
         },
         Some(ref v) if v == "client" => {
             let url = &*("http://localhost:".to_string() + port);
-            println!("{:?}", client::post_json(url, &create_movie()).unwrap());
+            println!("{:?}", client::send(url));
         },
         Some(..) => println!("unknown mode"),
         None => println!("empty mode shouldn't happen"),
@@ -49,15 +48,6 @@ fn main() {
 
     
 }
-
-fn create_movie() -> Movie {
-    Movie {
-        title: "You Only Live Twice".to_owned(),
-        year: 1967,
-        bad_guy: "Blofeld".to_owned(),
-    }
-}
-
 
 #[test]
 fn test_simple_get() {
@@ -69,5 +59,11 @@ fn test_simple_get() {
 fn test_simple_post() {
     let query = vec![("keyA", "valueB"), ("foo", "bar")];
     let res = client::post_data("http://httpbin.org/post", query).unwrap();
+    println!("{}", res);
+}
+
+#[test]
+fn test_json_post() {
+    let res = client::post_json("http://httpbin.org/post", &client::create_movie()).unwrap();
     println!("{}", res);
 }
