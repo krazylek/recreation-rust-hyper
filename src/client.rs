@@ -1,58 +1,60 @@
-extern crate hyper;
-extern crate rustc_serialize;
+use futures::{Future, Stream};
+use hyper::{Client, Method};
+use hyper::client::{Request};
+use hyper::header::{ContentLength, ContentType};
+use std::io::{self, Write};
+use tokio_core::reactor::Core;
+use movie::{create_movie};
+use serde_json;
 
-use hyper::{Client};
-use std::io::Read;
-use url::form_urlencoded;
-use rustc_serialize::{Encodable, json};
-use server::{Movie};
+pub fn run(host: &str, command: &str) {
+    let request = match command {
+        "get" => {
+            let uri = format!("http://{}/", host).parse().unwrap();
+            let mut req = Request::new(Method::Get, uri);
+            req
+        },
+        "post" => {
+            let uri = format!("http://{}/", host).parse().unwrap();
+            let mut req = Request::new(Method::Post, uri);
+            req.set_body("Hello!");
+            req
+        },
+        "getmovie" => {
+            let uri = format!("http://{}/movie", host).parse().unwrap();
+            let mut req = Request::new(Method::Get, uri);
+            req
+        },
+        "addmovie" => {
+            let uri = format!("http://{}/movie", host).parse().unwrap();
+            let mut req = Request::new(Method::Post, uri);
+            let movie = create_movie();
+            let json = serde_json::to_string(&movie).unwrap();
+            req.headers_mut().set(ContentType::json());
+            req.headers_mut().set(ContentLength(json.len() as u64));
+            req.set_body(json);
+            req
+        },
+        _ => {
+            println!("invalid command");
+            let uri = format!("http://{}/help", host).parse().unwrap();
+            let mut req = Request::new(Method::Get, uri);
+            req
+        },
+    };
 
-pub type Query<'a> = Vec<(&'a str, &'a str)>;
+    let mut core = Core::new().unwrap();
+    let client = Client::new(&core.handle());
+    let method = request.method().to_owned();
+    let process = client.request(request).and_then(|res| {
+        println!("{}: {}", method, res.status());
 
-fn post(url: &str, body:&str) -> hyper::Result<String> {
-    println!("post request to {}", url);
-    let client = Client::new();
-    let mut response = try!(client.post(url).body(&body[..]).send());
-    let mut buf = String::new();
-    try!(response.read_to_string(&mut buf));
-    Ok(buf)
-}
+        res.body().for_each(|chunk| {
+            io::stdout()
+                .write_all(&chunk)
+                .map_err(From::from)
+        }).map(|()| { println!() })
+    });
 
-pub fn post_json<T>(url: &str, payload: &T) -> hyper::Result<String>
-    where T: Encodable {
-    println!("creating json post request");
-    let body = json::encode(payload).unwrap();
-    post(&url, &body)
-}
-
-pub fn post_data(url: &str, query:Query) -> hyper::Result<String> {
-    let body: String = form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(query.into_iter())
-        .finish();
-    post(&url, &body)
-}
-
-pub fn get_content(url: &str) -> hyper::Result<String> {
-    let client = Client::new();
-    let mut response = try!(client.get(url).send());
-    let mut buf = String::new();
-    try!(response.read_to_string(&mut buf));
-    println!("buf: {}", &buf);
-    Ok(buf)
-}
-
-pub fn send(url: &str) -> Vec<String> {
-    vec![ 
-        get_content(url).unwrap(),
-        post_data(url, vec![("keyA", "valueB"), ("foo", "bar")]).unwrap(),
-        post_json(url, &create_movie()).unwrap()
-    ]
-}
-
-pub fn create_movie() -> Movie {
-    Movie {
-        title: "You Only Live Twice".to_owned(),
-        year: 1967,
-        bad_guy: "Blofeld".to_owned(),
-    }
+    core.run(process).unwrap();
 }
